@@ -1,0 +1,153 @@
+// FaceProof — persistence layer.
+//
+// Design notes:
+//  * Face embeddings are intentionally NOT persisted. They live only in memory
+//    for the duration of a verification job (see modules/face/embedding-store).
+//  * Only derived, non-biometric data is stored: hashes, similarity scores and
+//    the public URLs a reverse-image-search provider genuinely returned.
+//  * The canonical evidence document is stored verbatim so that
+//    GET /verifications/:id/verify can re-canonicalise and re-hash it.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Verification {
+  id     String  @id @default(cuid())
+  /// pending | processing | completed | completed_no_match | failed
+  status String  @default("pending")
+  /// True when produced while DEMO_MODE=true. Such records are rejected by the
+  /// independent verification endpoint and badged in the UI.
+  demo   Boolean @default(false)
+
+  // ── Input image ────────────────────────────────────────────────────────────
+  filename       String
+  mimeType       String
+  byteSize       Int
+  width          Int
+  height         Int
+  /// SHA-256 of the uploaded bytes, lowercase hex.
+  inputImageHash String
+  /// 64-bit DCT perceptual hash, lowercase hex.
+  perceptualHash String
+  /// Path of the retained original on the API host (never exposed directly).
+  storagePath    String
+
+  // ── Face pipeline ──────────────────────────────────────────────────────────
+  faceDetected Boolean @default(false)
+  faceCount    Int     @default(0)
+  faceDetector String?
+  /// Serialised FaceDetectionSummary (boxes + scores, no biometric vector).
+  faceData     Json?
+  /// Serialised FaceEncodingSummary (model id + dimensions, no vector).
+  encodingData Json?
+
+  // ── Reverse image search ───────────────────────────────────────────────────
+  reverseSearchProvider String?
+  /// Serialised ReverseSearchSummary, i.e. the raw normalised provider results.
+  reverseSearchData     Json?
+
+  // ── Candidate analysis ─────────────────────────────────────────────────────
+  /// Serialised MatchAnalysis including every analysed candidate.
+  matchData Json?
+
+  // ── Evidence ───────────────────────────────────────────────────────────────
+  /// The canonical evidence document, stored exactly as it was hashed.
+  evidence     Json?
+  /// SHA-256 of the canonical serialisation of `evidence`.
+  evidenceHash String?
+
+  // ── Pipeline state ─────────────────────────────────────────────────────────
+  /// Serialised StageStatusDto[] driving the live pipeline UI.
+  stages    Json?
+  error     String?
+  errorCode String?
+
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  match            Match?
+  blockchainRecord BlockchainRecord?
+  events           VerificationEvent[]
+
+  @@index([inputImageHash])
+  @@index([evidenceHash])
+  @@index([createdAt])
+}
+
+model Match {
+  id String @id @default(cuid())
+
+  verificationId String       @unique
+  verification   Verification @relation(fields: [verificationId], references: [id], onDelete: Cascade)
+
+  platform         String?
+  handle           String?
+  postUrl          String?
+  imageUrl         String?
+  title            String?
+  domain           String?
+  visualSimilarity Float?
+  faceSimilarity   Float?
+  confidence       Float?
+  /// HIGH | MODERATE | LOW | INSUFFICIENT
+  evidenceStrength String?
+  matchReasons     String[] @default([])
+  /// Number of candidates that were actually downloaded and compared.
+  candidatesAnalysed Int    @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@index([platform])
+}
+
+model BlockchainRecord {
+  id String @id @default(cuid())
+
+  verificationId String       @unique
+  verification   Verification @relation(fields: [verificationId], references: [id], onDelete: Cascade)
+
+  network         String
+  chainId         Int
+  contractAddress String
+  transactionHash String
+  blockNumber     BigInt?
+  evidenceHash    String
+  /// On-chain block timestamp once confirmed, submission time before that.
+  timestamp       DateTime
+  confirmations   Int?
+  gasUsed         String?
+  /// submitting | confirmed | failed
+  status          String       @default("submitting")
+  error           String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([transactionHash])
+  @@index([evidenceHash])
+}
+
+/// Append-only event log. Backs SSE replay so a client that connects late (or
+/// reconnects) still receives every event from the beginning of the job.
+model VerificationEvent {
+  id String @id @default(cuid())
+
+  verificationId String
+  verification   Verification @relation(fields: [verificationId], references: [id], onDelete: Cascade)
+
+  /// Monotonic sequence number within a verification, starting at 1.
+  seq       Int
+  name      String
+  data      Json
+  createdAt DateTime @default(now())
+
+  @@unique([verificationId, seq])
+  @@index([verificationId, seq])
+}

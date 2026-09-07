@@ -1,0 +1,45 @@
+{
+  "name": "faceproof",
+  "version": "1.0.0",
+  "private": true,
+  "description": "FaceProof - face analysis, genuine reverse-image discovery and blockchain-anchored tamper-evident evidence.",
+  "workspaces": [
+    "packages/*",
+    "apps/*",
+    "contracts"
+  ],
+  "engines": {
+    "node": ">=20.11.0"
+  },
+  "scripts": {
+    "build:shared": "npm run build --workspace @faceproof/shared",
+    "build:api": "npm run build --workspace @faceproof/api",
+    "build:web": "npm run build --workspace @faceproof/web",
+    "build": "npm run build:shared && npm run build:api && npm run build:web",
+    "dev": "concurrently -n api,web -c cyan,magenta \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:api": "npm run dev --workspace @faceproof/api",
+    "dev:web": "npm run dev --workspace @faceproof/web",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "setup": "npm install && npm run build:shared && npm run models:fetch && npm run prisma:generate",
+    "models:fetch": "npm run models:fetch --workspace @faceproof/api",
+    "prisma:generate": "npm run prisma:generate --workspace @faceproof/api",
+    "prisma:migrate": "npm run prisma:migrate --workspace @faceproof/api",
+    "prisma:studio": "npm run prisma:studio --workspace @faceproof/api",
+    "db:up": "docker compose up -d postgres",
+    "db:local": "node scripts/local-postgres.mjs",
+    "db:down": "docker compose down",
+    "contracts:compile": "npm run compile --workspace @faceproof/contracts",
+    "contracts:test": "npm run test --workspace @faceproof/contracts",
+    "contracts:deploy": "npm run deploy:amoy --workspace @faceproof/contracts",
+    "chain:local": "npm run node --workspace @faceproof/contracts",
+    "contracts:deploy:local": "npm run deploy:local --workspace @faceproof/contracts",
+    "prisma:deploy": "npm run prisma:deploy --workspace @faceproof/api"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "embedded-postgres": "^18.4.0-beta.17",
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,0 +1,50 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# builds
+dist/
+build/
+.next/
+out/
+*.tsbuildinfo
+
+# env
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# runtime data
+apps/api/.tmp/
+apps/api/models/
+apps/api/uploads/
+storage/
+
+# prisma
+apps/api/prisma/migrations/dev.db*
+
+# hardhat
+contracts/artifacts/
+contracts/cache/
+contracts/typechain-types/
+contracts/deployments/
+
+# logs
+*.log
+npm-debug.log*
+logs/
+
+# editors / os
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# test output
+coverage/
+
+# local embedded postgres data
+.pgdata/

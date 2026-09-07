@@ -1,0 +1,39 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: faceproof-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: faceproof
+      POSTGRES_PASSWORD: faceproof
+      POSTGRES_DB: faceproof
+    ports:
+      - "5432:5432"
+    volumes:
+      - faceproof-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U faceproof -d faceproof"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # Optional S3-compatible storage for reverse-search providers that need a
+  # public image URL. Enable with:  docker compose --profile storage up -d
+  minio:
+    image: minio/minio:latest
+    container_name: faceproof-minio
+    profiles: ["storage"]
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: faceproof
+      MINIO_ROOT_PASSWORD: faceproof123
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - faceproof-minio:/data
+
+volumes:
+  faceproof-pgdata:
+  faceproof-minio:
